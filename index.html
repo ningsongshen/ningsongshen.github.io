@@ -1,1 +1,297 @@
-test
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ningsong Shen</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+            cursor: none;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: radial-gradient(circle at 50% 50%, #111 0%, #000 50%);
+            transition: background 0.3s ease;
+        }
+        
+        .letter {
+            position: absolute;
+            font-size: 8vw;
+            color: #4a0e1a;
+            font-weight: bold;
+            user-select: none;
+            pointer-events: none;
+            z-index: 10;
+        }
+        
+        #cursor-glow {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(64, 64, 64, 0.2) 0%, rgba(64, 64, 64, 0.1) 50%, transparent 100%);
+            pointer-events: none;
+            z-index: 5;
+            transform: translate(-50%, -50%);
+            transition: all 0.1s ease;
+        }
+        
+        .ripple {
+            position: absolute;
+            border-radius: 50%;
+            background: radial-gradient(circle, transparent 30%, rgba(64, 64, 64, 0.1) 50%, transparent 70%);
+            pointer-events: none;
+            z-index: 1;
+            animation: rippleEffect 2s ease-out forwards;
+        }
+        
+        @keyframes rippleEffect {
+            0% {
+                transform: translate(-50%, -50%) scale(0);
+                opacity: 0.8;
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(4);
+                opacity: 0;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .letter {
+                font-size: 12vw;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .letter {
+                font-size: 15vw;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="cursor-glow"></div>
+    </div>
+
+    <script>
+        class Letter {
+            constructor(char, x, y) {
+                this.char = char;
+                this.x = x;
+                this.y = y;
+                this.vx = 0;
+                this.vy = 0;
+                this.element = document.createElement('div');
+                this.element.className = 'letter';
+                this.element.textContent = char;
+                this.element.style.left = x + 'px';
+                this.element.style.top = y + 'px';
+                document.getElementById('container').appendChild(this.element);
+                
+                this.width = this.element.offsetWidth;
+                this.height = this.element.offsetHeight;
+                this.mass = 1;
+                this.friction = 0.99;
+                this.bounce = 0.8;
+            }
+            
+            update() {
+                // Only apply physics if the letter has been hit (has velocity)
+                if (Math.abs(this.vx) > 0.1 || Math.abs(this.vy) > 0.1) {
+                    // Apply gravity (very subtle)
+                    this.vy += 0.1;
+                    
+                    // Apply friction
+                    this.vx *= this.friction;
+                    this.vy *= this.friction;
+                    
+                    // Update position
+                    this.x += this.vx;
+                    this.y += this.vy;
+                    
+                    // Boundary collision
+                    if (this.x <= 0) {
+                        this.x = 0;
+                        this.vx = -this.vx * this.bounce;
+                    }
+                    if (this.x >= window.innerWidth - this.width) {
+                        this.x = window.innerWidth - this.width;
+                        this.vx = -this.vx * this.bounce;
+                    }
+                    if (this.y <= 0) {
+                        this.y = 0;
+                        this.vy = -this.vy * this.bounce;
+                    }
+                    if (this.y >= window.innerHeight - this.height) {
+                        this.y = window.innerHeight - this.height;
+                        this.vy = -this.vy * this.bounce;
+                    }
+                    
+                    // Update DOM position
+                    this.element.style.left = this.x + 'px';
+                    this.element.style.top = this.y + 'px';
+                }
+            }
+            
+            applyForce(fx, fy) {
+                this.vx += fx / this.mass;
+                this.vy += fy / this.mass;
+            }
+            
+            getDistance(mouseX, mouseY) {
+                const centerX = this.x + this.width / 2;
+                const centerY = this.y + this.height / 2;
+                return Math.sqrt((mouseX - centerX) ** 2 + (mouseY - centerY) ** 2);
+            }
+        }
+        
+        class PhysicsWorld {
+            constructor() {
+                this.letters = [];
+                this.mouse = { x: 0, y: 0, prevX: 0, prevY: 0 };
+                this.cursorGlow = document.getElementById('cursor-glow');
+                this.container = document.getElementById('container');
+                this.setupLetters();
+                this.setupEventListeners();
+                this.animate();
+            }
+            
+            setupLetters() {
+                const firstName = "NINGSONG";
+                const lastName = "SHEN";
+                const containerWidth = window.innerWidth;
+                const containerHeight = window.innerHeight;
+                const spacing = 5; // Fixed 5px spacing between letters
+                
+                // With monospace font, all letters have the same width
+                // Create one temporary letter to measure dimensions
+                const tempLetter = new Letter('M', 0, 0);
+                const letterWidth = tempLetter.element.offsetWidth;
+                const letterHeight = tempLetter.element.offsetHeight;
+                tempLetter.element.remove();
+                
+                // Calculate total widths
+                const firstNameWidth = (firstName.length * letterWidth) + ((firstName.length - 1) * spacing);
+                const lastNameWidth = (lastName.length * letterWidth) + ((lastName.length - 1) * spacing);
+                const lineSpacing = letterHeight * 0.3;
+                
+                // Position first name (NINGSONG) - top row
+                let startX = (containerWidth - firstNameWidth) / 2;
+                let startY = (containerHeight / 2) - letterHeight - (lineSpacing / 2);
+                
+                for (let i = 0; i < firstName.length; i++) {
+                    const letter = new Letter(firstName[i], startX, startY);
+                    this.letters.push(letter);
+                    startX += letterWidth + spacing;
+                }
+                
+                // Position last name (SHEN) - bottom row
+                startX = (containerWidth - lastNameWidth) / 2;
+                startY = (containerHeight / 2) + (lineSpacing / 2);
+                
+                for (let i = 0; i < lastName.length; i++) {
+                    const letter = new Letter(lastName[i], startX, startY);
+                    this.letters.push(letter);
+                    startX += letterWidth + spacing;
+                }
+            }
+            
+            setupEventListeners() {
+                document.addEventListener('mousemove', (e) => {
+                    this.mouse.prevX = this.mouse.x;
+                    this.mouse.prevY = this.mouse.y;
+                    this.mouse.x = e.clientX;
+                    this.mouse.y = e.clientY;
+                    
+                    // Update cursor glow position
+                    this.cursorGlow.style.left = this.mouse.x + 'px';
+                    this.cursorGlow.style.top = this.mouse.y + 'px';
+                    
+                    // Create wave background effect
+                    const intensity = Math.abs(this.mouse.x - this.mouse.prevX) + Math.abs(this.mouse.y - this.mouse.prevY);
+                    this.createRipple(this.mouse.x, this.mouse.y, intensity);
+                    
+                    // Update background gradient based on mouse position
+                    const xPercent = (this.mouse.x / window.innerWidth) * 100;
+                    const yPercent = (this.mouse.y / window.innerHeight) * 100;
+                    this.container.style.background = `radial-gradient(circle at ${xPercent}% ${yPercent}%, #222 0%, #111 30%, #000 70%)`;
+                });
+                
+                window.addEventListener('resize', () => {
+                    this.letters.forEach(letter => letter.element.remove());
+                    this.letters = [];
+                    this.setupLetters();
+                });
+            }
+            
+            createRipple(x, y, intensity) {
+                const ripple = document.createElement('div');
+                ripple.className = 'ripple';
+                ripple.style.left = x + 'px';
+                ripple.style.top = y + 'px';
+                ripple.style.width = (20 + intensity * 2) + 'px';
+                ripple.style.height = (20 + intensity * 2) + 'px';
+                this.container.appendChild(ripple);
+                
+                setTimeout(() => {
+                    if (ripple.parentNode) {
+                        ripple.parentNode.removeChild(ripple);
+                    }
+                }, 2000);
+            }
+            
+            checkMouseCollision() {
+                const mouseSpeed = Math.sqrt(
+                    (this.mouse.x - this.mouse.prevX) ** 2 + 
+                    (this.mouse.y - this.mouse.prevY) ** 2
+                );
+                
+                this.letters.forEach(letter => {
+                    const distance = letter.getDistance(this.mouse.x, this.mouse.y);
+                    const influence = 80; // Collision detection radius
+                    
+                    if (distance < influence) {
+                        const force = Math.max(5, mouseSpeed * 0.5);
+                        const angle = Math.atan2(
+                            (letter.y + letter.height / 2) - this.mouse.y,
+                            (letter.x + letter.width / 2) - this.mouse.x
+                        );
+                        
+                        const pushX = Math.cos(angle) * force;
+                        const pushY = Math.sin(angle) * force;
+                        
+                        letter.applyForce(pushX, pushY);
+                    }
+                });
+            }
+            
+            animate() {
+                this.checkMouseCollision();
+                this.letters.forEach(letter => letter.update());
+                requestAnimationFrame(() => this.animate());
+            }
+        }
+        
+        // Initialize when page loads
+        window.addEventListener('load', () => {
+            new PhysicsWorld();
+        });
+    </script>
+</body>
+</html>
