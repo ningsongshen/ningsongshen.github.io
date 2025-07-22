@@ -4,293 +4,359 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ningsong Shen</title>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@900&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS CDN for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts - Lato (lighter and sleeker) -->
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        /* Custom CSS for the website */
+        body {
+            font-family: 'Lato', sans-serif; /* Using Lato font */
+            background-color: #1a1a1a; /* Dark background for contrast */
+            overflow: hidden; /* Hide scrollbars due to canvas */
+            cursor: default; /* Default cursor */
         }
-        
-        body, html {
+
+        /* Canvas for the particle animation */
+        canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
             width: 100%;
             height: 100%;
-            overflow: hidden;
-            background: #000;
-            cursor: none;
-            font-family: 'JetBrains Mono', monospace;
+            z-index: 0; /* Background layer */
         }
-        
-        #container {
+
+        /* Container for the name */
+        .name-container {
             position: relative;
-            width: 100vw;
-            height: 100vh;
-            background: radial-gradient(circle at 50% 50%, #111 0%, #000 50%);
-            transition: background 0.3s ease;
+            z-index: 1; /* Foreground layer */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh; /* Full viewport height */
+            perspective: 1000px; /* For 3D effects */
         }
-        
+
+        /* Styling for individual letters */
         .letter {
-            position: absolute;
-            font-size: 8vw;
-            color: #800020;
-            font-weight: bold;
-            user-select: none;
-            pointer-events: none;
-            z-index: 10;
+            display: inline-block;
+            color: #800020; /* Burgundy color */
+            font-size: 8vw; /* Responsive font size */
+            font-weight: 900; /* Extra bold, Lato 900 is less chunky than Montserrat 900 */
+            margin: 0 0.5vw; /* Responsive margin between letters */
+            transition: color 0.2s ease-out, text-shadow 0.2s ease-out; /* Smooth transitions, transform handled by JS */
+            cursor: pointer; /* Pointer cursor on hover */
+            text-shadow: 0 0 5px rgba(128, 0, 32, 0.5); /* Subtle shadow */
+            user-select: none; /* Prevent text selection */
+            position: relative; /* Allow for subtle positioning via JS */
+            will-change: transform; /* Optimize for animation */
         }
-        
-        #cursor-glow {
-            position: absolute;
-            width: 100px;
-            height: 100px;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(64, 64, 64, 0.2) 0%, rgba(64, 64, 64, 0.1) 50%, transparent 100%);
-            pointer-events: none;
-            z-index: 5;
-            transform: translate(-50%, -50%);
-            transition: all 0.1s ease;
+
+        /* Hover effect for letters */
+        .letter:hover {
+            color: #b03a5e; /* Lighter burgundy on hover */
+            text-shadow: 0 0 15px rgba(176, 58, 94, 0.8); /* More prominent shadow */
         }
-        
-        .ripple {
-            position: absolute;
-            border-radius: 50%;
-            background: radial-gradient(circle, transparent 30%, rgba(64, 64, 64, 0.1) 50%, transparent 70%);
-            pointer-events: none;
-            z-index: 1;
-            animation: rippleEffect 2s ease-out forwards;
+
+        /* Click effect for letters */
+        .letter.clicked {
+            animation: letterPop 0.3s ease-out forwards; /* Pop animation */
+            color: #ffffff; /* Temporary color change on click to white */
         }
-        
-        @keyframes rippleEffect {
+
+        /* Keyframe animation for letter pop */
+        @keyframes letterPop {
             0% {
-                transform: translate(-50%, -50%) scale(0);
-                opacity: 0.8;
+                /* Transform will be handled by JS for continuous movement, so reset here */
+                transform: scale(1) translateY(0) rotateX(0deg) rotateY(0deg);
+                text-shadow: 0 0 5px rgba(128, 0, 32, 0.5);
+            }
+            50% {
+                transform: scale(1.2) translateY(-10px) rotateZ(5deg); /* Larger pop with slight rotation */
+                color: #ffffff; /* White on click */
+                text-shadow: 0 0 25px rgba(255, 255, 255, 1); /* White shadow */
             }
             100% {
-                transform: translate(-50%, -50%) scale(4);
-                opacity: 0;
+                /* Transform will be handled by JS for continuous movement, so reset here */
+                transform: scale(1) translateY(0) rotateX(0deg) rotateY(0deg);
+                color: #800020;
+                text-shadow: 0 0 5px rgba(128, 0, 32, 0.5);
             }
         }
-        
+
+        /* Responsive adjustments for smaller screens */
         @media (max-width: 768px) {
             .letter {
-                font-size: 12vw;
-            }
-        }
-        
-        @media (max-width: 480px) {
-            .letter {
-                font-size: 15vw;
+                font-size: 12vw; /* Larger font size on smaller screens */
+                margin: 0 1vw;
             }
         }
     </style>
 </head>
 <body>
-    <div id="container">
-        <div id="cursor-glow"></div>
+    <!-- Canvas for background particle animation -->
+    <canvas id="particleCanvas"></canvas>
+
+    <!-- Container for the name "Ningsong Shen" -->
+    <div class="name-container">
+        <!-- Each letter is a span for individual interaction -->
+        <span class="letter">N</span>
+        <span class="letter">i</span>
+        <span class="letter">n</span>
+        <span class="letter">g</span>
+        <span class="letter">s</span>
+        <span class="letter">o</span>
+        <span class="letter">n</span>
+        <span class="letter">g</span>
+        <span class="letter ml-4">S</span> <!-- Added margin for space between names -->
+        <span class="letter">h</span>
+        <span class="letter">e</span>
+        <span class="letter">n</span>
     </div>
 
     <script>
-        class Letter {
-            constructor(char, x, y) {
-                this.char = char;
+        // JavaScript for particle animation and letter interactivity
+
+        // Get the canvas element and its 2D rendering context
+        const canvas = document.getElementById('particleCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Array to store particle objects
+        const particles = [];
+        const particleCount = 100; // Number of background particles
+
+        // Particle properties
+        const particleColor = 'rgba(128, 0, 32, 0.7)'; // Burgundy with some transparency
+        const particleRadius = 2; // Radius of each particle
+        const burstParticleColors = [ // Rainbow colors for burst particles
+            'rgba(255, 0, 0, 0.9)',    // Red
+            'rgba(255, 165, 0, 0.9)',  // Orange
+            'rgba(255, 255, 0, 0.9)',  // Yellow
+            'rgba(0, 128, 0, 0.9)',    // Green
+            'rgba(0, 0, 255, 0.9)',    // Blue
+            'rgba(75, 0, 130, 0.9)',   // Indigo
+            'rgba(238, 130, 238, 0.9)' // Violet
+        ];
+        const burstParticleCount = 15; // Number of particles in a burst
+
+        let mouse = {
+            x: null,
+            y: null,
+            radius: 100 // Interaction radius for particles around mouse
+        };
+
+        // Function to set canvas dimensions to fill the window
+        function setCanvasSize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        // Particle class definition
+        class Particle {
+            constructor(x, y, color, type = 'background') { // Added color parameter
                 this.x = x;
                 this.y = y;
-                this.vx = 0;
-                this.vy = 0;
-                this.element = document.createElement('div');
-                this.element.className = 'letter';
-                this.element.textContent = char;
-                this.element.style.left = x + 'px';
-                this.element.style.top = y + 'px';
-                document.getElementById('container').appendChild(this.element);
-                
-                this.width = this.element.offsetWidth;
-                this.height = this.element.offsetHeight;
-                this.mass = 1;
-                this.friction = 0.99;
-                this.bounce = 0.8;
+                this.type = type; // 'background' or 'burst'
+                this.size = Math.random() * particleRadius + 1;
+                this.speedX = Math.random() * 0.5 - 0.25;
+                this.speedY = Math.random() * 0.5 - 0.25;
+                this.color = color; // Use the provided color
+                this.opacity = 1; // For burst particles to fade out
             }
-            
+
+            // Update particle position and behavior
             update() {
-                // Only apply physics if the letter has been hit (has velocity)
-                if (Math.abs(this.vx) > 0.1 || Math.abs(this.vy) > 0.1) {
-                    // Apply gravity (very subtle)
-                    this.vy += 0.1;
-                    
-                    // Apply friction
-                    this.vx *= this.friction;
-                    this.vy *= this.friction;
-                    
-                    // Update position
-                    this.x += this.vx;
-                    this.y += this.vy;
-                    
-                    // Boundary collision
-                    if (this.x <= 0) {
-                        this.x = 0;
-                        this.vx = -this.vx * this.bounce;
+                if (this.type === 'background') {
+                    this.x += this.speedX;
+                    this.y += this.speedY;
+
+                    // Bounce off edges
+                    if (this.x + this.size > canvas.width || this.x - this.size < 0) {
+                        this.speedX *= -1;
                     }
-                    if (this.x >= window.innerWidth - this.width) {
-                        this.x = window.innerWidth - this.width;
-                        this.vx = -this.vx * this.bounce;
+                    if (this.y + this.size > canvas.height || this.y - this.size < 0) {
+                        this.speedY *= -1;
                     }
-                    if (this.y <= 0) {
-                        this.y = 0;
-                        this.vy = -this.vy * this.bounce;
+
+                    // Mouse interaction: particles repel from mouse
+                    if (mouse.x && mouse.y) {
+                        const dx = this.x - mouse.x;
+                        const dy = this.y - mouse.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+
+                        if (distance < mouse.radius) {
+                            const angle = Math.atan2(dy, dx);
+                            const force = mouse.radius / distance;
+                            this.x += Math.cos(angle) * force * 0.5;
+                            this.y += Math.sin(angle) * force * 0.5;
+                        }
                     }
-                    if (this.y >= window.innerHeight - this.height) {
-                        this.y = window.innerHeight - this.height;
-                        this.vy = -this.vy * this.bounce;
-                    }
-                    
-                    // Update DOM position
-                    this.element.style.left = this.x + 'px';
-                    this.element.style.top = this.y + 'px';
+                } else if (this.type === 'burst') {
+                    this.x += this.speedX * 5; // Faster initial speed for burst
+                    this.y += this.speedY * 5;
+                    this.opacity -= 0.02; // Fade out
+                    this.size *= 0.98; // Shrink
                 }
             }
-            
-            applyForce(fx, fy) {
-                this.vx += fx / this.mass;
-                this.vy += fy / this.mass;
-            }
-            
-            getDistance(mouseX, mouseY) {
-                const centerX = this.x + this.width / 2;
-                const centerY = this.y + this.height / 2;
-                return Math.sqrt((mouseX - centerX) ** 2 + (mouseY - centerY) ** 2);
+
+            // Draw particle on canvas
+            draw() {
+                ctx.fillStyle = this.color;
+                if (this.type === 'burst') {
+                    ctx.globalAlpha = this.opacity; // Apply opacity for fading
+                }
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1; // Reset global alpha after drawing burst particle
             }
         }
-        
-        class PhysicsWorld {
-            constructor() {
-                this.letters = [];
-                this.mouse = { x: 0, y: 0, prevX: 0, prevY: 0 };
-                this.cursorGlow = document.getElementById('cursor-glow');
-                this.container = document.getElementById('container');
-                this.setupLetters();
-                this.setupEventListeners();
-                this.animate();
-            }
-            
-            setupLetters() {
-                const firstName = "NINGSONG";
-                const lastName = "SHEN";
-                const containerWidth = window.innerWidth;
-                const containerHeight = window.innerHeight;
-                const spacing = 5; // Fixed 5px spacing between letters
-                
-                // With monospace font, all letters have the same width
-                // Create one temporary letter to measure dimensions
-                const tempLetter = new Letter('M', 0, 0);
-                const letterWidth = tempLetter.element.offsetWidth;
-                const letterHeight = tempLetter.element.offsetHeight;
-                tempLetter.element.remove();
-                
-                // Calculate total widths
-                const firstNameWidth = (firstName.length * letterWidth) + ((firstName.length - 1) * spacing);
-                const lastNameWidth = (lastName.length * letterWidth) + ((lastName.length - 1) * spacing);
-                const lineSpacing = letterHeight * 0.3;
-                
-                // Position first name (NINGSONG) - top row
-                let startX = (containerWidth - firstNameWidth) / 2;
-                let startY = (containerHeight / 2) - letterHeight - (lineSpacing / 2);
-                
-                for (let i = 0; i < firstName.length; i++) {
-                    const letter = new Letter(firstName[i], startX, startY);
-                    this.letters.push(letter);
-                    startX += letterWidth + spacing;
-                }
-                
-                // Position last name (SHEN) - bottom row
-                startX = (containerWidth - lastNameWidth) / 2;
-                startY = (containerHeight / 2) + (lineSpacing / 2);
-                
-                for (let i = 0; i < lastName.length; i++) {
-                    const letter = new Letter(lastName[i], startX, startY);
-                    this.letters.push(letter);
-                    startX += letterWidth + spacing;
-                }
-            }
-            
-            setupEventListeners() {
-                document.addEventListener('mousemove', (e) => {
-                    this.mouse.prevX = this.mouse.x;
-                    this.mouse.prevY = this.mouse.y;
-                    this.mouse.x = e.clientX;
-                    this.mouse.y = e.clientY;
-                    
-                    // Update cursor glow position
-                    this.cursorGlow.style.left = this.mouse.x + 'px';
-                    this.cursorGlow.style.top = this.mouse.y + 'px';
-                    
-                    // Create wave background effect
-                    const intensity = Math.abs(this.mouse.x - this.mouse.prevX) + Math.abs(this.mouse.y - this.mouse.prevY);
-                    this.createRipple(this.mouse.x, this.mouse.y, intensity);
-                    
-                    // Update background gradient based on mouse position
-                    const xPercent = (this.mouse.x / window.innerWidth) * 100;
-                    const yPercent = (this.mouse.y / window.innerHeight) * 100;
-                    this.container.style.background = `radial-gradient(circle at ${xPercent}% ${yPercent}%, #222 0%, #111 30%, #000 70%)`;
-                });
-                
-                window.addEventListener('resize', () => {
-                    this.letters.forEach(letter => letter.element.remove());
-                    this.letters = [];
-                    this.setupLetters();
-                });
-            }
-            
-            createRipple(x, y, intensity) {
-                const ripple = document.createElement('div');
-                ripple.className = 'ripple';
-                ripple.style.left = x + 'px';
-                ripple.style.top = y + 'px';
-                ripple.style.width = (20 + intensity * 2) + 'px';
-                ripple.style.height = (20 + intensity * 2) + 'px';
-                this.container.appendChild(ripple);
-                
-                setTimeout(() => {
-                    if (ripple.parentNode) {
-                        ripple.parentNode.removeChild(ripple);
-                    }
-                }, 2000);
-            }
-            
-            checkMouseCollision() {
-                const mouseSpeed = Math.sqrt(
-                    (this.mouse.x - this.mouse.prevX) ** 2 + 
-                    (this.mouse.y - this.mouse.prevY) ** 2
-                );
-                
-                this.letters.forEach(letter => {
-                    const distance = letter.getDistance(this.mouse.x, this.mouse.y);
-                    const influence = 80; // Collision detection radius
-                    
-                    if (distance < influence) {
-                        const force = Math.max(5, mouseSpeed * 0.5);
-                        const angle = Math.atan2(
-                            (letter.y + letter.height / 2) - this.mouse.y,
-                            (letter.x + letter.width / 2) - this.mouse.x
-                        );
-                        
-                        const pushX = Math.cos(angle) * force;
-                        const pushY = Math.sin(angle) * force;
-                        
-                        letter.applyForce(pushX, pushY);
-                    }
-                });
-            }
-            
-            animate() {
-                this.checkMouseCollision();
-                this.letters.forEach(letter => letter.update());
-                requestAnimationFrame(() => this.animate());
+
+        // Letter objects to manage their floating movement
+        const letterObjects = [];
+
+        // Initialize background particles
+        function initParticles() {
+            particles.length = 0; // Clear existing particles
+            for (let i = 0; i < particleCount; i++) {
+                const x = Math.random() * canvas.width;
+                const y = Math.random() * canvas.height;
+                // Background particles use the fixed particleColor
+                particles.push(new Particle(x, y, particleColor, 'background'));
             }
         }
-        
-        // Initialize when page loads
+
+        // Create a burst of particles from a specific location
+        function createBurst(x, y) {
+            for (let i = 0; i < burstParticleCount; i++) {
+                // Randomly select a color from the burstParticleColors array
+                const randomColor = burstParticleColors[Math.floor(Math.random() * burstParticleColors.length)];
+                const burstParticle = new Particle(x, y, randomColor, 'burst'); // Pass the random color
+                burstParticle.speedX = (Math.random() - 0.5) * 4; // Random burst direction
+                burstParticle.speedY = (Math.random() - 0.5) * 4;
+                particles.push(burstParticle);
+            }
+        }
+
+        // Animation loop for particles and letters
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas
+
+            // Update and draw background particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                particles[i].update();
+                particles[i].draw();
+                if (particles[i].type === 'burst' && (particles[i].opacity <= 0.05 || particles[i].size <= 0.5)) {
+                    particles.splice(i, 1); // Remove faded/shrunk burst particles
+                }
+            }
+
+            // Update and apply transform for letters
+            letterObjects.forEach(letterObj => {
+                // Apply subtle floating movement
+                letterObj.x += letterObj.speedX;
+                letterObj.y += letterObj.speedY;
+
+                // Bounce off a small virtual boundary around their initial position
+                const maxOffset = 5; // Max pixels offset from initial position
+                if (letterObj.x > letterObj.initialX + maxOffset || letterObj.x < letterObj.initialX - maxOffset) {
+                    letterObj.speedX *= -1;
+                }
+                if (letterObj.y > letterObj.initialY + maxOffset || letterObj.y < letterObj.initialY - maxOffset) {
+                    letterObj.speedY *= -1;
+                }
+
+                // Mouse interaction for tilt/rotation (re-calculate each frame)
+                const containerRect = nameContainer.getBoundingClientRect();
+                const centerX = containerRect.left + containerRect.width / 2;
+                const centerY = containerRect.top + containerRect.height / 2;
+
+                let rotateX = 0;
+                let rotateY = 0;
+
+                if (mouse.x && mouse.y) {
+                    rotateX = (mouse.y - centerY) / centerY * 10; // Max 10 degrees
+                    rotateY = (mouse.x - centerX) / centerX * -10; // Max 10 degrees, inverted for natural feel
+                }
+
+                // Apply combined transformations
+                letterObj.element.style.transform = `translate(${letterObj.x - letterObj.initialX}px, ${letterObj.y - letterObj.initialY}px) scale(1) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+            });
+
+            requestAnimationFrame(animate); // Loop the animation
+        }
+
+        // Event listeners for letter interactivity
+        const letters = document.querySelectorAll('.letter');
+        const nameContainer = document.querySelector('.name-container');
+
+        // Initialize letter objects with their initial positions and movement properties
         window.addEventListener('load', () => {
-            new PhysicsWorld();
+            letters.forEach(letter => {
+                const rect = letter.getBoundingClientRect();
+                letterObjects.push({
+                    element: letter,
+                    initialX: rect.left, // Store initial position
+                    initialY: rect.top,
+                    x: rect.left, // Current position for floating
+                    y: rect.top,
+                    speedX: (Math.random() - 0.5) * 0.2, // Very subtle speed
+                    speedY: (Math.random() - 0.5) * 0.2
+                });
+
+                letter.addEventListener('click', (e) => {
+                    // Add 'clicked' class to trigger animation
+                    letter.classList.add('clicked');
+                    // Remove 'clicked' class after animation completes
+                    letter.addEventListener('animationend', () => {
+                        letter.classList.remove('clicked');
+                    }, { once: true }); // Ensure listener is removed after one use
+
+                    // Get the position of the clicked letter to create a particle burst
+                    const rect = letter.getBoundingClientRect();
+                    const letterCenterX = rect.left + rect.width / 2;
+                    const letterCenterY = rect.top + rect.height / 2;
+                    createBurst(letterCenterX, letterCenterY);
+                });
+            });
+        });
+
+
+        // Mouse movement for letter tilt and particle interaction
+        nameContainer.addEventListener('mousemove', (e) => {
+            // Update mouse position for particle interaction
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+        });
+
+        nameContainer.addEventListener('mouseleave', () => {
+            // Reset letter transform when mouse leaves the container
+            // The floating animation will continue
+            mouse.x = null;
+            mouse.y = null;
+        });
+
+        // Initialize on window load and handle resize
+        window.onload = function() {
+            setCanvasSize(); // Set initial canvas size
+            initParticles(); // Initialize particles
+            animate(); // Start the main animation loop
+        };
+
+        window.addEventListener('resize', () => {
+            setCanvasSize(); // Adjust canvas size on window resize
+            initParticles(); // Re-initialize particles for new dimensions
+            // Re-calculate initial positions for letters on resize
+            letters.forEach((letter, index) => {
+                const rect = letter.getBoundingClientRect();
+                if (letterObjects[index]) {
+                    letterObjects[index].initialX = rect.left;
+                    letterObjects[index].initialY = rect.top;
+                    letterObjects[index].x = rect.left;
+                    letterObjects[index].y = rect.top;
+                }
+            });
         });
     </script>
 </body>
