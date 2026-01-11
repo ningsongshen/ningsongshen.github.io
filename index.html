@@ -64,22 +64,47 @@
   <div class="ribbons" id="ribbons"></div>
 
   <script>
-    const ribbonCount = Math.ceil(window.innerHeight / 60); // estimate based on ~60px height per ribbon
-    const container = document.getElementById('ribbons');
+    function init() {
+      const container = document.getElementById('ribbons');
+      container.innerHTML = '';
+      
+      // Calculate ribbon count based on a tighter height to ensure density
+      // 2.5rem is approx 40px at 16px root. 
+      // We use 45px to keep them fairly tight but legible.
+      const ribbonHeight = 45; 
+      const ribbonCount = Math.ceil(window.innerHeight / ribbonHeight);
 
-    for (let i = 0; i < ribbonCount; i++) {
-      const ribbon = document.createElement('div');
-      ribbon.className = 'ribbon';
+      // We need enough text to cover at least 2x the screen width for smooth infinite scrolling
+      // We will perform a rough character width estimation or temp measurement.
+      // A safer simpler way is to just repeat enough times based on a conservative guess of char width.
+      // Avg char width ~20px? 4k screen width = 3840px. 3840 * 2 / 20 ~ 384 chars.
+      // "SHEN NINGSONG " is 14 chars. 384 / 14 ~ 27 repeats. 
+      // To be safe for wider screens, let's target coverage of 8000px width.
+      
+      const targetWidth = Math.max(window.innerWidth * 2.5, 5000); // 2.5x width or at least 5000px
+      
+      for (let i = 0; i < ribbonCount; i++) {
+        const ribbon = document.createElement('div');
+        ribbon.className = 'ribbon';
 
-      const scroll = document.createElement('div');
-      scroll.className = 'scroll' + (i % 2 === 1 ? ' reverse' : '');
+        const scroll = document.createElement('div');
+        scroll.className = 'scroll' + (i % 2 === 1 ? ' reverse' : '');
 
-      const text = (i % 2 === 0) ? 'SHEN NINGSONG ' : '沈 宁 松 ';
-      scroll.innerText = text.repeat(20);
+        const baseText = (i % 2 === 0) ? 'SHEN NINGSONG ' : '沈 宁 松 ';
+        // Approximate width of baseText to decide repeats
+        // If we assume roughly 30px per char (generous) then:
+        const estimatedTextWidth = baseText.length * 30; 
+        const repeatCount = Math.ceil(targetWidth / estimatedTextWidth) + 5; // +5 for safety
 
-      ribbon.appendChild(scroll);
-      container.appendChild(ribbon);
+        scroll.innerText = baseText.repeat(repeatCount);
+
+        ribbon.appendChild(scroll);
+        container.appendChild(ribbon);
+      }
     }
+
+    init();
+    window.addEventListener('resize', init);
   </script>
 </body>
 </html>
