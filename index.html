@@ -102,67 +102,18 @@
       white-space: nowrap;
     }
 
-    .ribbons {
+    /* the script draws the ribbons into this canvas */
+    .canvas {
       position: fixed;
       inset: 0;
-      display: flex;
-      flex-direction: column;
-      font-size: 2.5rem;
-      font-weight: 300;
-      line-height: 1;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
+      width: 100%;
+      height: 100%;
       opacity: 0;
       transition: opacity 1.2s ease;
     }
 
-    .ribbons.on {
+    .canvas.on {
       opacity: 1;
-    }
-
-    .ribbon {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      contain: strict;
-    }
-
-    /* Each row is two identical halves and loops by exactly half its own width, so the seam
-       depends only on the browser's own layout. pre keeps the trailing space so the halves match. */
-    .scroll {
-      flex: none;
-      white-space: pre;
-    }
-
-    @keyframes s0 {
-      from {
-        transform: translateX(0);
-      }
-
-      to {
-        transform: translateX(-50%);
-      }
-    }
-
-    @keyframes s1 {
-      from {
-        transform: translateX(-50%);
-      }
-
-      to {
-        transform: translateX(0);
-      }
-    }
-
-    /* duration and delay are set per row from the script */
-    @media (prefers-reduced-motion: no-preference) {
-      .s0 {
-        animation: s0 linear infinite;
-      }
-
-      .s1 {
-        animation: s1 linear infinite;
-      }
     }
 
     .plate {
@@ -222,7 +173,7 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
-      .ribbons,
+      .canvas,
       .plate {
         transition: none;
         animation: none;
@@ -234,37 +185,53 @@
        clip at the bottom; the text is long enough to cover a 4K-wide screen. -->
   <noscript>
     <style>
-      .still {
-        opacity: 1;
-        animation: fade 1.2s ease both;
+      .ribbons {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        font-size: 2.5rem;
+        font-weight: 300;
+        line-height: 1;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
       }
 
-      .still .ribbon {
+      .ribbon {
         flex: none;
         height: 45px;
+        display: flex;
+        align-items: center;
+        contain: strict;
       }
 
-      .still .ribbon::before {
+      .ribbon::before {
         content: 'SHEN NINGSONG SHEN NINGSONG SHEN NINGSONG SHEN NINGSONG SHEN NINGSONG SHEN NINGSONG SHEN NINGSONG SHEN NINGSONG SHEN NINGSONG SHEN NINGSONG SHEN NINGSONG SHEN NINGSONG ';
         flex: none;
         white-space: pre;
         margin-left: -2em;
       }
 
-      .still .ribbon:nth-child(even)::before {
+      .ribbon:nth-child(even)::before {
         content: '沈 宁 松 沈 宁 松 沈 宁 松 沈 宁 松 沈 宁 松 沈 宁 松 沈 宁 松 沈 宁 松 沈 宁 松 沈 宁 松 沈 宁 松 沈 宁 松 沈 宁 松 沈 宁 松 沈 宁 松 沈 宁 松 沈 宁 松 沈 宁 松 沈 宁 松 沈 宁 松 沈 宁 松 沈 宁 松 沈 宁 松 沈 宁 松 沈 宁 松 ';
       }
 
-      .still .ribbon:nth-child(3n)::before {
+      .ribbon:nth-child(3n)::before {
         margin-left: -5em;
       }
 
-      .still .ribbon:nth-child(4n + 1)::before {
+      .ribbon:nth-child(4n + 1)::before {
         margin-left: -7em;
       }
 
-      .still .ribbon:nth-child(5n + 2)::before {
+      .ribbon:nth-child(5n + 2)::before {
         margin-left: -0.5em;
+      }
+
+      @media (prefers-reduced-motion: no-preference) {
+        .ribbons {
+          animation: fade 1.2s ease both;
+        }
       }
 
       @keyframes fade {
@@ -277,9 +244,9 @@
 </head>
 <body>
   <h1 class="sr-only">Ningsong Shen <span lang="zh-Hans">沈宁松</span></h1>
-  <div class="ribbons" aria-hidden="true"></div>
+  <canvas class="canvas" aria-hidden="true"></canvas>
   <noscript>
-    <div class="ribbons still" aria-hidden="true">
+    <div class="ribbons" aria-hidden="true">
       <div class="ribbon"></div><div class="ribbon"></div><div class="ribbon"></div><div class="ribbon"></div><div class="ribbon"></div><div class="ribbon"></div><div class="ribbon"></div><div class="ribbon"></div><div class="ribbon"></div><div class="ribbon"></div>
       <div class="ribbon"></div><div class="ribbon"></div><div class="ribbon"></div><div class="ribbon"></div><div class="ribbon"></div><div class="ribbon"></div><div class="ribbon"></div><div class="ribbon"></div><div class="ribbon"></div><div class="ribbon"></div>
       <div class="ribbon"></div><div class="ribbon"></div><div class="ribbon"></div><div class="ribbon"></div><div class="ribbon"></div><div class="ribbon"></div><div class="ribbon"></div><div class="ribbon"></div><div class="ribbon"></div><div class="ribbon"></div>
@@ -299,11 +266,17 @@
       const UNITS = ['SHEN NINGSONG ', '沈 宁 松 '];
       const SPEEDS = [108, 91]; // px/s
       const ROW_HEIGHT = 45;
-      const box = document.querySelector('.ribbons');
+      const SIZE = 40; // px, the 2.5rem the static ribbons use
+      const TRACKING = 0.05; // em
+      const FONT = 'NS, "Helvetica Neue", Arial, sans-serif';
+      const canvas = document.querySelector('.canvas');
+      const ctx = canvas.getContext('2d', { alpha: false });
       const motion = matchMedia('(prefers-reduced-motion: no-preference)');
+      // One pre-drawn strip per unit, reused across resizes so canvases never pile up.
+      const strips = UNITS.map(() => ({ canvas: document.createElement('canvas'), period: 0 }));
       const rows = [];
-      let widths = [];
-      let copies = [];
+      let dpr = 0;
+      let rowHeight = 0;
 
       // Stable pseudo-random value in [0, 1) per row, so a row keeps its speed and phase across resizes.
       const rand = n => {
@@ -312,65 +285,82 @@
       };
       const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-      // Width of one unit, used only to pick how many copies to render and how long a loop takes.
-      // The loop itself shifts by half the row's own width, so it never depends on this being exact.
-      // Returns whether the widths changed.
-      function measure() {
-        const probe = box.appendChild(document.createElement('span'));
-        probe.className = 'scroll';
-        probe.style.position = 'absolute';
-        const next = UNITS.map((unit, i) => {
-          probe.lang = i ? 'zh-Hans' : '';
-          probe.textContent = unit.repeat(10);
-          return probe.getBoundingClientRect().width / 10;
-        });
-        probe.remove();
-        const changed = next.some((w, i) => w !== widths[i]);
-        widths = next;
-        return changed;
+      // Canvas letter-spacing isn't supported everywhere yet; without it, place characters one by one.
+      const tracked = 'letterSpacing' in ctx;
+
+      function setFont(c) {
+        c.font = `300 ${SIZE * dpr}px ${FONT}`;
+        c.textBaseline = 'middle';
+        c.fillStyle = '#fff';
+        if (tracked) c.letterSpacing = SIZE * TRACKING * dpr + 'px';
       }
 
-      // Fill a row with two identical halves and time its loop. Each row gets a slightly different speed
-      // and starts at its own phase, far into the timeline so there is room to run backwards when scrolling up.
-      // The inline transform only shows when there is no animation (reduced motion): rows hold still at their phase.
-      function fill(row) {
-        const n = copies[row.kind];
-        const duration = n * widths[row.kind] / SPEEDS[row.kind] / row.speed;
-        row.el.textContent = UNITS[row.kind].repeat(2 * n);
-        row.el.style.animationDuration = duration + 's';
-        row.el.style.animationDelay = -(1000 + row.phase) * duration + 's';
-        row.el.style.transform = `translateX(${-50 * row.phase}%)`;
-        row.anim = null;
+      function advance(c, unit) {
+        if (tracked) return c.measureText(unit).width;
+        return [...unit].reduce((w, ch) => w + c.measureText(ch).width + SIZE * TRACKING * dpr, 0);
       }
 
-      // Rows cover the whole screen, not just the window, so resizing or rotating never changes a loop.
-      // Rows are only added or removed at the end, so the rest keep running untouched.
-      function layout() {
-        const cover = Math.max(innerWidth, screen.width, screen.height);
-        const next = widths.map(w => Math.ceil(cover / w));
-        const count = Math.ceil(innerHeight / ROW_HEIGHT);
-        const changed = next.some((n, i) => n !== copies[i]);
-        copies = next;
-
-        while (rows.length > count) rows.pop().el.parentNode.remove();
-        if (changed) rows.forEach(fill);
-
-        while (rows.length < count) {
-          const n = rows.length;
-          const ribbon = document.createElement('div');
-          const el = ribbon.appendChild(document.createElement('div'));
-          const row = { el, kind: n % 2, speed: 0.9 + 0.2 * rand(n), phase: rand(n + 1000), rate: 1, anim: null };
-          ribbon.className = 'ribbon';
-          el.className = 'scroll s' + row.kind;
-          if (row.kind) el.lang = 'zh-Hans';
-          fill(row);
-          box.appendChild(ribbon);
-          rows.push(row);
+      function write(c, unit, x, y) {
+        if (tracked) return c.fillText(unit, x, y);
+        for (const ch of unit) {
+          c.fillText(ch, x, y);
+          x += c.measureText(ch).width + SIZE * TRACKING * dpr;
         }
       }
 
+      // Each strip repeats its unit at a whole-pixel period and covers the canvas plus one period,
+      // so any canvas-wide window starting inside the first period is seamless by construction.
+      function paintStrips(force) {
+        strips.forEach((strip, i) => {
+          const c = strip.canvas.getContext('2d');
+          setFont(c);
+          const period = Math.max(1, Math.round(advance(c, UNITS[i])));
+          const copies = Math.ceil(canvas.width / period) + 1;
+          if (!force && period === strip.period && strip.canvas.width >= copies * period) return;
+          strip.period = period;
+          strip.canvas.width = copies * period;
+          strip.canvas.height = Math.ceil(ROW_HEIGHT * dpr);
+          setFont(c); // resizing a canvas resets its context
+          for (let k = 0; k < copies; k++) write(c, UNITS[i], k * period, strip.canvas.height / 2);
+        });
+      }
+
+      function render() {
+        ctx.fillStyle = '#0e0e0e';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        rows.forEach((row, i) => {
+          const strip = strips[row.kind];
+          const h = strip.canvas.height;
+          const sx = Math.floor(row.offset * strip.period);
+          const y = Math.round((i + 0.5) * rowHeight - h / 2);
+          ctx.drawImage(strip.canvas, sx, 0, canvas.width, h, 0, y, canvas.width, h);
+        });
+      }
+
+      // Size the canvas to the window in device pixels. Rows are only added or removed at the end and keep
+      // their offsets as fractions of a period, so resizing or a pixel-ratio change never makes them jump.
+      function resize(force) {
+        const ratio = devicePixelRatio || 1;
+        const w = Math.round(innerWidth * ratio);
+        const h = Math.round(innerHeight * ratio);
+        if (!force && ratio === dpr && w === canvas.width && h === canvas.height) return;
+        force = force || ratio !== dpr;
+        dpr = ratio;
+        canvas.width = w;
+        canvas.height = h;
+        paintStrips(force);
+
+        const count = Math.ceil(innerHeight / ROW_HEIGHT);
+        rowHeight = h / count;
+        rows.length = Math.min(rows.length, count);
+        while (rows.length < count) {
+          const n = rows.length;
+          rows.push({ kind: n % 2, speed: 0.9 + 0.2 * rand(n), offset: rand(n + 1000), rate: 1 });
+        }
+        render();
+      }
+
       // Rows near the pointer slow down; wheel and swipes push the speed, scrolling up runs them backwards.
-      // The loop only runs while rates are still settling, and leaves every rate at exactly 1 when done.
       let pointerY = null;
       let lastY = null;
       let boost = 0;
@@ -378,87 +368,78 @@
       let then = 0;
 
       function tick(now) {
-        const dt = then ? Math.min(now - then, 50) : 0;
-        const ease = 1 - Math.exp(-dt / 120);
-        const h = innerHeight / rows.length;
+        const dt = then ? Math.min(now - then, 50) / 1000 : 0;
+        const ease = 1 - Math.exp(-dt / 0.12);
         then = now;
-        boost *= Math.exp(-dt / 400);
-        if (Math.abs(boost) < 0.01) boost = 0;
-        let busy = boost !== 0;
+        boost *= Math.exp(-dt / 0.4);
 
         rows.forEach((row, i) => {
           let target = 1 + boost;
           if (pointerY !== null) {
-            const d = (pointerY - (i + 0.5) * h) / h;
+            const d = (pointerY * dpr - (i + 0.5) * rowHeight) / rowHeight;
             target *= 1 - 0.8 * Math.exp(-d * d / 2);
           }
           row.rate += (target - row.rate) * ease;
-          if (Math.abs(target - row.rate) > 0.002) busy = true;
-          else row.rate = target;
-          row.anim ||= row.el.getAnimations()[0] || null;
-          if (row.anim && row.anim.playbackRate !== row.rate) row.anim.playbackRate = row.rate;
+          const strip = strips[row.kind];
+          const step = SPEEDS[row.kind] * dpr * row.speed * row.rate * dt / strip.period;
+          row.offset = ((row.offset + (row.kind ? -step : step)) % 1 + 1) % 1;
         });
 
-        frame = busy || !dt ? requestAnimationFrame(tick) : 0;
-        if (!frame) then = 0;
+        render();
+        frame = requestAnimationFrame(tick);
       }
 
-      const kick = () => {
-        if (!frame && motion.matches && rows.length) frame = requestAnimationFrame(tick);
-      };
+      // Run the loop unless reduced motion is on; then the rows are drawn once and hold still at their phases.
+      // The browser pauses the loop on its own while the tab is hidden.
+      function play() {
+        cancelAnimationFrame(frame);
+        then = 0;
+        frame = motion.matches ? requestAnimationFrame(tick) : 0;
+        if (!frame) render();
+      }
 
       addEventListener('wheel', e => {
         if (e.ctrlKey) return; // trackpad pinch
         boost = clamp(boost + e.deltaY * (e.deltaMode ? 0.4 : 0.01), -6, 6);
-        kick();
       }, { passive: true });
 
       addEventListener('pointerdown', e => {
         pointerY = lastY = e.clientY;
-        kick();
       });
 
       addEventListener('pointermove', e => {
         if (e.pointerType !== 'mouse' && lastY !== null) boost = clamp(boost + (lastY - e.clientY) * 0.03, -6, 6);
         pointerY = lastY = e.clientY;
-        kick();
       }, { passive: true });
 
       const release = () => {
         pointerY = lastY = null;
-        kick();
       };
       addEventListener('pointerup', e => e.pointerType !== 'mouse' && release());
       addEventListener('pointercancel', release);
       document.documentElement.addEventListener('pointerleave', release);
 
-      // Animations are created or dropped when the setting flips; forget the old ones.
-      motion.addEventListener('change', () => rows.forEach(row => {
-        row.anim = null;
-        row.rate = 1;
-      }));
+      motion.addEventListener('change', play);
 
       let queued = false;
       addEventListener('resize', () => {
-        if (queued || !copies.length) return;
+        if (queued || !dpr) return;
         queued = true;
         requestAnimationFrame(() => {
           queued = false;
-          layout();
+          resize(false);
         });
       });
 
-      // Wait for the inlined fonts before measuring; re-time the rows if a font lands later and changes widths.
+      // Wait for the inlined fonts before drawing; repaint the strips if a font lands later.
       const init = () => {
-        measure();
-        layout();
-        box.classList.add('on');
+        resize(true);
+        canvas.classList.add('on');
+        play();
       };
-      document.fonts.load('300 1em NS', 'S沈').then(init, init);
+      document.fonts.load(`300 ${SIZE}px NS`, 'S沈').then(init, init);
       document.fonts.addEventListener('loadingdone', () => {
-        if (!copies.length || !measure()) return;
-        copies = [];
-        layout();
+        if (dpr) resize(true);
       });
     })();
   </script>
