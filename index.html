@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Ningsong Shen</title>
   <style>
     * {
@@ -13,98 +13,99 @@
 
     html, body {
       height: 100%;
-      background-color: #0e0e0e;
-      font-family: 'Helvetica Neue', sans-serif;
       overflow: hidden;
+      background: #0e0e0e;
     }
 
-    .ribbons {
+    body {
       display: flex;
       flex-direction: column;
-      height: 100vh;
+      color: #fff;
+      font: 300 2.5rem/1 'Helvetica Neue', sans-serif;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
     }
 
     .ribbon {
       flex: 1;
       display: flex;
       align-items: center;
-      overflow: hidden;
-      white-space: nowrap;
-      font-size: 2.5rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: white;
-      font-weight: 300;
-      line-height: 1;
+      contain: strict;
     }
 
+    /* pre keeps the trailing space, so N copies of a unit are exactly N unit widths */
     .scroll {
-      display: inline-block;
-      white-space: nowrap;
-      padding-right: 2rem;
-      animation: scroll 30s linear infinite;
-    }
-
-    .scroll.reverse {
-      animation: scroll-reverse 30s linear infinite;
-    }
-
-    @keyframes scroll {
-      from { transform: translateX(0); }
-      to { transform: translateX(-50%); }
-    }
-
-    @keyframes scroll-reverse {
-      from { transform: translateX(-50%); }
-      to { transform: translateX(0); }
+      flex: none;
+      white-space: pre;
     }
   </style>
 </head>
 <body>
-  <div class="ribbons" id="ribbons"></div>
-
   <script>
-    function init() {
-      const container = document.getElementById('ribbons');
-      container.innerHTML = '';
-      
-      // Calculate ribbon count based on a tighter height to ensure density
-      // 2.5rem is approx 40px at 16px root. 
-      // We use 45px to keep them fairly tight but legible.
-      const ribbonHeight = 45; 
-      const ribbonCount = Math.ceil(window.innerHeight / ribbonHeight);
+    (() => {
+      const UNITS = ['SHEN NINGSONG ', '沈 宁 松 '];
+      const SPEEDS = [108, 91]; // px/s
+      const ROW_HEIGHT = 45;
+      const rows = [];
+      let texts = [];
 
-      // We need enough text to cover at least 2x the screen width for smooth infinite scrolling
-      // We will perform a rough character width estimation or temp measurement.
-      // A safer simpler way is to just repeat enough times based on a conservative guess of char width.
-      // Avg char width ~20px? 4k screen width = 3840px. 3840 * 2 / 20 ~ 384 chars.
-      // "SHEN NINGSONG " is 14 chars. 384 / 14 ~ 27 repeats. 
-      // To be safe for wider screens, let's target coverage of 8000px width.
-      
-      const targetWidth = Math.max(window.innerWidth * 2.5, 5000); // 2.5x width or at least 5000px
-      
-      for (let i = 0; i < ribbonCount; i++) {
-        const ribbon = document.createElement('div');
-        ribbon.className = 'ribbon';
+      // Measure each unit once, then loop each row by exactly one unit width.
+      // Rows only need to cover the viewport plus one unit, which keeps their layers small.
+      const probe = document.createElement('span');
+      probe.className = 'scroll';
+      probe.style.position = 'absolute';
+      document.body.appendChild(probe);
+      const widths = UNITS.map(unit => {
+        probe.textContent = unit.repeat(10);
+        return probe.getBoundingClientRect().width / 10;
+      });
+      probe.remove();
 
-        const scroll = document.createElement('div');
-        scroll.className = 'scroll' + (i % 2 === 1 ? ' reverse' : '');
+      const style = document.createElement('style');
+      style.textContent =
+        `@keyframes s0{to{transform:translateX(-${widths[0]}px)}}` +
+        `@keyframes s1{from{transform:translateX(-${widths[1]}px)}}` +
+        '@media (prefers-reduced-motion:no-preference){' +
+        `.s0{animation:s0 ${widths[0] / SPEEDS[0]}s linear infinite}` +
+        `.s1{animation:s1 ${widths[1] / SPEEDS[1]}s linear infinite}}`;
+      document.head.appendChild(style);
 
-        const baseText = (i % 2 === 0) ? 'SHEN NINGSONG ' : '沈 宁 松 ';
-        // Approximate width of baseText to decide repeats
-        // If we assume roughly 30px per char (generous) then:
-        const estimatedTextWidth = baseText.length * 30; 
-        const repeatCount = Math.ceil(targetWidth / estimatedTextWidth) + 5; // +5 for safety
+      // Add or remove rows at the end and only touch text when the needed length changes,
+      // so resizing never restarts the animations or rebuilds the page.
+      function layout() {
+        const next = UNITS.map((unit, i) => unit.repeat(Math.ceil(innerWidth / widths[i]) + 1));
+        const count = Math.ceil(innerHeight / ROW_HEIGHT);
 
-        scroll.innerText = baseText.repeat(repeatCount);
+        while (rows.length > count) rows.pop().parentNode.remove();
+        rows.forEach((row, n) => {
+          if (next[n % 2] !== texts[n % 2]) row.textContent = next[n % 2];
+        });
+        texts = next;
 
-        ribbon.appendChild(scroll);
-        container.appendChild(ribbon);
+        while (rows.length < count) {
+          const ribbon = document.createElement('div');
+          const scroll = document.createElement('div');
+          ribbon.className = 'ribbon';
+          scroll.className = 'scroll s' + (rows.length % 2);
+          scroll.textContent = texts[rows.length % 2];
+          ribbon.appendChild(scroll);
+          document.body.appendChild(ribbon);
+          rows.push(scroll);
+        }
       }
-    }
 
-    init();
-    window.addEventListener('resize', init);
+      let queued = false;
+      addEventListener('resize', () => {
+        if (queued) return;
+        queued = true;
+        requestAnimationFrame(() => {
+          queued = false;
+          layout();
+        });
+      });
+
+      layout();
+    })();
   </script>
 </body>
 </html>
