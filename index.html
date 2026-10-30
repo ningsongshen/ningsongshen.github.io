@@ -81,6 +81,9 @@
       background: #0e0e0e;
       /* no panning to claim, so vertical swipes reach the page; pinch-zoom still works */
       touch-action: pinch-zoom;
+      /* stop iOS from inflating text sizes on its own */
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
     }
 
     body {
@@ -124,10 +127,42 @@
       contain: strict;
     }
 
-    /* pre keeps the trailing space, so N copies of a unit are exactly N unit widths */
+    /* Each row is two identical halves and loops by exactly half its own width, so the seam
+       depends only on the browser's own layout. pre keeps the trailing space so the halves match. */
     .scroll {
       flex: none;
       white-space: pre;
+    }
+
+    @keyframes s0 {
+      from {
+        transform: translateX(0);
+      }
+
+      to {
+        transform: translateX(-50%);
+      }
+    }
+
+    @keyframes s1 {
+      from {
+        transform: translateX(-50%);
+      }
+
+      to {
+        transform: translateX(0);
+      }
+    }
+
+    /* duration and delay are set per row from the script */
+    @media (prefers-reduced-motion: no-preference) {
+      .s0 {
+        animation: s0 linear infinite;
+      }
+
+      .s1 {
+        animation: s1 linear infinite;
+      }
     }
 
     .plate {
@@ -265,11 +300,10 @@
       const SPEEDS = [108, 91]; // px/s
       const ROW_HEIGHT = 45;
       const box = document.querySelector('.ribbons');
-      const style = document.head.appendChild(document.createElement('style'));
       const motion = matchMedia('(prefers-reduced-motion: no-preference)');
       const rows = [];
       let widths = [];
-      let texts = [];
+      let copies = [];
 
       // Stable pseudo-random value in [0, 1) per row, so a row keeps its speed and phase across resizes.
       const rand = n => {
@@ -278,8 +312,8 @@
       };
       const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-      // Measure each unit, then loop each row by exactly one unit width.
-      // Rows only need to cover the viewport plus one unit, which keeps their layers small.
+      // Width of one unit, used only to pick how many copies to render and how long a loop takes.
+      // The loop itself shifts by half the row's own width, so it never depends on this being exact.
       // Returns whether the widths changed.
       function measure() {
         const probe = box.appendChild(document.createElement('span'));
@@ -291,60 +325,52 @@
           return probe.getBoundingClientRect().width / 10;
         });
         probe.remove();
-        if (next.every((w, i) => w === widths[i])) return false;
-
+        const changed = next.some((w, i) => w !== widths[i]);
         widths = next;
-        texts = [];
-        style.textContent =
-          `@keyframes s0{to{transform:translateX(-${widths[0]}px)}}` +
-          `@keyframes s1{from{transform:translateX(-${widths[1]}px)}}` +
-          '@media (prefers-reduced-motion:no-preference){' +
-          `.s0{animation:s0 ${widths[0] / SPEEDS[0]}s linear infinite}` +
-          `.s1{animation:s1 ${widths[1] / SPEEDS[1]}s linear infinite}}`;
-        return true;
+        return changed;
       }
 
-      // Stagger each row's phase and vary its speed slightly so rows don't move in lockstep.
-      // Starting far into the timeline leaves room to run backwards when scrolling up.
-      // With reduced motion, rows hold still at their phase instead.
-      function start(row) {
-        row.anim = row.el.getAnimations()[0] || null;
-        row.el.style.transform = row.anim ? '' : `translateX(${-row.phase * widths[row.kind]}px)`;
-        if (!row.anim) return;
-        row.anim.playbackRate = row.rate;
-        row.anim.currentTime = (1000 + row.phase) * row.anim.effect.getComputedTiming().duration;
+      // Fill a row with two identical halves and time its loop. Each row gets a slightly different speed
+      // and starts at its own phase, far into the timeline so there is room to run backwards when scrolling up.
+      // The inline transform only shows when there is no animation (reduced motion): rows hold still at their phase.
+      function fill(row) {
+        const n = copies[row.kind];
+        const duration = n * widths[row.kind] / SPEEDS[row.kind] / row.speed;
+        row.el.textContent = UNITS[row.kind].repeat(2 * n);
+        row.el.style.animationDuration = duration + 's';
+        row.el.style.animationDelay = -(1000 + row.phase) * duration + 's';
+        row.el.style.transform = `translateX(${-50 * row.phase}%)`;
+        row.anim = null;
       }
 
-      // Add or remove rows at the end and only touch text when the needed length changes,
-      // so resizing never restarts the animations or rebuilds the page.
+      // Rows cover the whole screen, not just the window, so resizing or rotating never changes a loop.
+      // Rows are only added or removed at the end, so the rest keep running untouched.
       function layout() {
-        const next = UNITS.map((unit, i) => unit.repeat(Math.ceil(innerWidth / widths[i]) + 1));
+        const cover = Math.max(innerWidth, screen.width, screen.height);
+        const next = widths.map(w => Math.ceil(cover / w));
         const count = Math.ceil(innerHeight / ROW_HEIGHT);
-        const first = Math.min(rows.length, count);
+        const changed = next.some((n, i) => n !== copies[i]);
+        copies = next;
 
         while (rows.length > count) rows.pop().el.parentNode.remove();
-        rows.forEach((row, n) => {
-          if (next[n % 2] !== texts[n % 2]) row.el.textContent = next[n % 2];
-        });
-        texts = next;
+        if (changed) rows.forEach(fill);
 
         while (rows.length < count) {
           const n = rows.length;
           const ribbon = document.createElement('div');
           const el = ribbon.appendChild(document.createElement('div'));
+          const row = { el, kind: n % 2, speed: 0.9 + 0.2 * rand(n), phase: rand(n + 1000), rate: 1, anim: null };
           ribbon.className = 'ribbon';
-          el.className = 'scroll s' + (n % 2);
-          if (n % 2) el.lang = 'zh-Hans';
-          el.textContent = texts[n % 2];
+          el.className = 'scroll s' + row.kind;
+          if (row.kind) el.lang = 'zh-Hans';
+          fill(row);
           box.appendChild(ribbon);
-          const base = 0.9 + 0.2 * rand(n);
-          rows.push({ el, kind: n % 2, anim: null, base, rate: base, phase: rand(n + 1000) });
+          rows.push(row);
         }
-        rows.slice(first).forEach(start);
       }
 
       // Rows near the pointer slow down; wheel and swipes push the speed, scrolling up runs them backwards.
-      // The loop only runs while rates are still settling.
+      // The loop only runs while rates are still settling, and leaves every rate at exactly 1 when done.
       let pointerY = null;
       let lastY = null;
       let boost = 0;
@@ -357,17 +383,20 @@
         const h = innerHeight / rows.length;
         then = now;
         boost *= Math.exp(-dt / 400);
-        let busy = Math.abs(boost) > 0.01;
+        if (Math.abs(boost) < 0.01) boost = 0;
+        let busy = boost !== 0;
 
         rows.forEach((row, i) => {
-          let target = row.base * (1 + boost);
+          let target = 1 + boost;
           if (pointerY !== null) {
             const d = (pointerY - (i + 0.5) * h) / h;
             target *= 1 - 0.8 * Math.exp(-d * d / 2);
           }
           row.rate += (target - row.rate) * ease;
           if (Math.abs(target - row.rate) > 0.002) busy = true;
-          if (row.anim && Math.abs(row.anim.playbackRate - row.rate) > 0.001) row.anim.playbackRate = row.rate;
+          else row.rate = target;
+          row.anim ||= row.el.getAnimations()[0] || null;
+          if (row.anim && row.anim.playbackRate !== row.rate) row.anim.playbackRate = row.rate;
         });
 
         frame = busy || !dt ? requestAnimationFrame(tick) : 0;
@@ -403,11 +432,15 @@
       addEventListener('pointercancel', release);
       document.documentElement.addEventListener('pointerleave', release);
 
-      motion.addEventListener('change', () => requestAnimationFrame(() => rows.forEach(start)));
+      // Animations are created or dropped when the setting flips; forget the old ones.
+      motion.addEventListener('change', () => rows.forEach(row => {
+        row.anim = null;
+        row.rate = 1;
+      }));
 
       let queued = false;
       addEventListener('resize', () => {
-        if (queued || !widths.length) return;
+        if (queued || !copies.length) return;
         queued = true;
         requestAnimationFrame(() => {
           queued = false;
@@ -415,7 +448,7 @@
         });
       });
 
-      // Wait for the inlined fonts before measuring; re-measure if a font lands later and changes widths.
+      // Wait for the inlined fonts before measuring; re-time the rows if a font lands later and changes widths.
       const init = () => {
         measure();
         layout();
@@ -423,9 +456,9 @@
       };
       document.fonts.load('300 1em NS', 'S沈').then(init, init);
       document.fonts.addEventListener('loadingdone', () => {
-        if (!widths.length || !measure()) return;
+        if (!copies.length || !measure()) return;
+        copies = [];
         layout();
-        if (!motion.matches) rows.forEach(start);
       });
     })();
   </script>
